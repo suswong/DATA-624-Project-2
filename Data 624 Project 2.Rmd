@@ -32,12 +32,11 @@ The goal of the project is to understand the manufacturing process and the predi
 
 ## Load Data
 
-
 ```{r}
 library(dplyr)
 data <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/heads/main/StudentData.csv", na.strings = c("", "NA"))
 
-test <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/heads/main/StudentEvaluation.csv", na.strings = c("", "NA"))
+s.eval <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/heads/main/StudentEvaluation.csv", na.strings = c("", "NA"))
 ```
 
 ```{r}
@@ -57,6 +56,13 @@ Column names were cleaned and standardized to make them more consistent and easi
 
 ```{r}
 names(data) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSC CO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
+"FillerLevel",      "FillerSpeed" ,     "Temperature",       "Usagecont",       
+"CarbFlow" ,        "Density"   ,        "MFR"       ,        "Balling" ,         
+"PressureVacuum" ,  "PH"    ,            "OxygenFiller" ,    "BowlSetpoint"   , 
+"PressureSetpoint", "AirPressurer",    "AlchRel" ,         "CarbRel"  ,       
+"BallingLvl" )
+
+names(s.eval) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSC CO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
 "FillerLevel",      "FillerSpeed" ,     "Temperature",       "Usagecont",       
 "CarbFlow" ,        "Density"   ,        "MFR"       ,        "Balling" ,         
 "PressureVacuum" ,  "PH"    ,            "OxygenFiller" ,    "BowlSetpoint"   , 
@@ -137,10 +143,6 @@ Variables that are highly multimodal can reveal that they may be operated at dif
 plot_histogram(data)
 ```
 
-```{r, message=FALSE}
-plot_qq(data)
-```
-
 Almost half of the observations are brand C. Brands A and C have similar observations.
 
 ```{r}
@@ -168,11 +170,6 @@ ggplot(data,
         y = "PH")
 ```
 
-
-```{r}
-plot_scatterplot(data, by="PH")
-```
-
 ## Transforming Variables to factors
 
 Variables that are highly multimodal can reveal that they may be operated at different setting or conditions. Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.
@@ -184,7 +181,159 @@ train_data <- data %>%
     BowlSetpoint = as.factor(BowlSetpoint),
     BrandCode = as.factor(BrandCode)
   )
+
+s.eval <- s.eval %>%
+  mutate(
+    PressureSetpoint = as.factor(PressureSetpoint),
+    BowlSetpoint = as.factor(BowlSetpoint),
+    BrandCode = as.factor(BrandCode)
+  )
 ```
+
+# Preprocessing
+
+
+`PH`, the target variable has missing values. We should drop any observations that contains missing values in `PH`
+
+`HydPressure1` was dropped as it has near zero variance. 
+
+```{r}
+library(tidyr)
+library(caret)
+train_clean_data <- data %>%
+  drop_na(PH)
+
+train_filtered <- train_clean_data[, -nearZeroVar(train_clean_data)]
+
+```
+
+## Imputing Missing Data
+
+```{r}
+set.seed(1)
+trainingRows <- createDataPartition(train_filtered$PH,
+                                    p = .70,
+                                    list= FALSE)
+train1 <- train_filtered[trainingRows, ]
+  
+test1  <- train_filtered[-trainingRows, ]
+```
+
+```{r}
+library(forcats)
+
+train1 <- train1%>%
+  mutate(across(where(is.factor), ~fct_na_value_to_level(.x, "Unknown")))
+
+test1 <- test1%>%
+  mutate(across(where(is.factor), ~fct_na_value_to_level(.x, "Unknown")))
+```
+
+```{r}
+trans <- preProcess(train1 %>%
+                      select(-PH), 
+                    method = c("center", "scale", "knnImpute", "BoxCox"))
+
+transformed_data <- predict(trans, train1%>%
+                     select(-PH))
+train_final <- cbind(transformed_data, PH = train1$PH)
+
+test_transformed <- predict(trans, test1%>%
+                     select(-PH))
+
+test_final <- cbind(test_transformed, PH = test1$PH)
+```
+
+```{r}
+set.seed(1)
+
+lm_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "lm", 
+                  trControl = trainControl(method = "cv", number = 5)
+                  )
+
+summary(lm_model)
+```
+
+```{r}
+plot(lm_model$finalModel)
+```
+
+```{r}
+lm_pred <- predict(lm_model, test_final)
+postResample(pred = lm_pred, obs = test_final$PH)
+```
+
+
+```{r}
+library(car)
+vif(lm_model$finalModel)
+```
+
+```{r}
+train_final_reduced <- train_final %>%
+  select(-BallingLvl)
+
+set.seed(2)
+lm_model2 <- train(PH ~. , 
+                  data = train_final_reduced,
+                  method = "lm", 
+                  trControl = trainControl(method = "cv", number = 5)
+                  )
+
+summary(lm_model2)
+```
+```{r}
+lm_pred2 <- predict(lm_model2, train_final_reduced)
+postResample(pred = lm_pred2, obs = train_final_reduced$PH)
+```
+
+```{r}
+train_final_reduced <- train_final %>%
+  select(-BallingLvl, -AlchRel)
+
+set.seed(2)
+lm_model3 <- train(PH ~. , 
+                  data = train_final_reduced,
+                  method = "lm", 
+                  trControl = trainControl(method = "cv", number = 5)
+                  )
+
+summary(lm_model3)
+```
+
+```{r}
+lm_pred3 <- predict(lm_model3, train_final_reduced)
+postResample(pred = lm_pred3, obs = train_final_reduced$PH)
+```
+
+## Ridge
+
+```{r}
+set.seed(11)
+
+ridge_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "ridge", 
+                  trControl = trainControl(method = "cv", number = 5)
+                  )
+
+summary(ridge_model)
+```
+
+```{r}
+ridge_pred <- predict(ridge_model, test_final)
+postResample(pred = ridge_pred, obs = test_final$PH)
+```
+
+## lasso/elastic net
+## random forest
+## SVM
+## gbm or xgboost
+## cubist
+
+
 
 # Correlation
 
@@ -192,33 +341,13 @@ The correlation plot reveals multicollienarity is present.
 
 ```{r}
 library(corrplot)
-corrplot(cor(data %>%
+corrplot(cor(train_final %>%
                select(where(is.numeric)),
              use = "pairwise.complete.obs"),
          type = "lower",
          order = "alphabet",
          tl.cex = 0.6,
          tl.col = "black")
-```
-
-# Preprocessing 
-
-`PH`, the target variable has missing values. 
-
-```{r}
-preprocess_
-
-```
-
-```{r}
-
-```
-
-```{r}
-cor(data %>%
-               select(where(is.numeric)),
-             use = "pairwise.complete.obs")
-
 ```
 
 

@@ -1,0 +1,254 @@
+---
+title: "DATA 624 Project"
+author: "Susanna Wong"
+date: "2025-12-01"
+output:
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: true
+  word_document:
+    toc: true
+  pdf_document:
+    toc: true
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Objective
+
+# Introduction
+
+The goal of the project is to understand the manufacturing process and the predictive factor of the beverage. Create a predictive model of PH.
+
+
+
+# Data Exploration
+
+## Load Data
+
+
+```{r}
+library(dplyr)
+data <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/heads/main/StudentData.csv", na.strings = c("", "NA"))
+
+test <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/heads/main/StudentEvaluation.csv", na.strings = c("", "NA"))
+```
+
+```{r}
+head(data)
+```
+
+There are 2571 observations with 33 variables. 
+
+```{r}
+summary(data)
+```
+## Renaming Variables
+
+Column names were cleaned and standardized to make them more consistent and easier to work with in R. 
+- Spaces and special character were removed. 
+- Renamed `Carb.Pressure` and `Carb.Pressure1` to `CarbPressure1` and `CarbPressure2` to following the naming of `HydPressure1` - `HydPressure4`
+
+```{r}
+names(data) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSC CO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
+"FillerLevel",      "FillerSpeed" ,     "Temperature",       "Usagecont",       
+"CarbFlow" ,        "Density"   ,        "MFR"       ,        "Balling" ,         
+"PressureVacuum" ,  "PH"    ,            "OxygenFiller" ,    "BowlSetpoint"   , 
+"PressureSetpoint", "AirPressurer",    "AlchRel" ,         "CarbRel"  ,       
+"BallingLvl" )
+```
+
+## Missing Data
+
+```{r}
+library(DataExplorer)
+plot_intro(data)
+```
+
+844 observations contains missing data. 
+
+```{r}
+sum(is.na(data))
+```
+
+Every column has missing values except `Pressure.Vacuum` and `Air.Pressurer`.
+
+```{r}
+sapply(data, function(x) sum(is.na(x)))
+```
+
+Below is the percentage of missing data for each column. `MFR` has the highest percentage of missing data but it is only accounts about 8.25%. The amount of missing values is not significant so we should not drop any observations with missing values. We should impute the missing values later. 
+
+```{r, message=FALSE}
+library(DataExplorer)
+plot_missing(data,
+             missing_only = T)
+```
+
+```{r}
+data$BrandCode <- as.factor(data$BrandCode)
+```
+
+## Distribution
+
+Variables with good range and clear distribution is likely to show a relationship with the dependent variable. The following variables appears normal distribution:
+- Carb Pressure 1
+- Carb Pressure 2
+- Carb Temp
+- Carb Volume
+- Fill Ounces
+- PC Volume
+
+Variables that appears skewed will need transformation to be performed. 
+The following variables appears right skewed:
+- Hyd Pressure 1 (There is a significant amount of values at 0) 
+- PSC                
+- PSC Fill          
+- PSC CO2
+- Pressure Vacuum    
+- Temperature
+- Oxygen Filler 
+
+The following variables appears left skewed:  
+- Hyd Pressure2 (There is a significant amount of values at 0)     
+- Hyd Pressure3 (There is a significant amount of values at 0)      
+- Hyd Pressure4  
+- Mnf Flow  (There is a significant amount of values at 0)          
+- MFR
+         
+The following variables appear bimodal. 
+- Balling 
+- Balling Lvl  
+- Carb Rel 
+- Density
+
+Variables that are highly multimodal can reveal that they may be operated at different setting or conditions. Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.The following variables appear multimodal. 
+- Bowl Set Point
+- Pressure Set Point
+
+
+```{r}
+plot_histogram(data)
+```
+
+```{r, message=FALSE}
+plot_qq(data)
+```
+
+Almost half of the observations are brand C. Brands A and C have similar observations.
+
+```{r}
+library(ggplot2)
+ggplot(data, 
+       aes(x = BrandCode, fill = BrandCode)) +
+  geom_bar() +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs( title = "Brand Distribution",
+        x = "Brand",
+        y = "Count")
+```
+
+Brand C has a lower PH while Brand D has the highest PH level.
+
+```{r}
+ggplot(data, 
+       aes(x = BrandCode, y = PH, fill = BrandCode)) +
+  geom_boxplot() +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs( title = "Boxplot of PH by Brand",
+        x = "Brand",
+        y = "PH")
+```
+
+
+```{r}
+plot_scatterplot(data, by="PH")
+```
+
+## Transforming Variables to factors
+
+Variables that are highly multimodal can reveal that they may be operated at different setting or conditions. Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.
+
+```{r}
+train_data <- data %>%
+  mutate(
+    PressureSetpoint = as.factor(PressureSetpoint),
+    BowlSetpoint = as.factor(BowlSetpoint),
+    BrandCode = as.factor(BrandCode)
+  )
+```
+
+# Correlation
+
+The correlation plot reveals multicollienarity is present. 
+
+```{r}
+library(corrplot)
+corrplot(cor(data %>%
+               select(where(is.numeric)),
+             use = "pairwise.complete.obs"),
+         type = "lower",
+         order = "alphabet",
+         tl.cex = 0.6,
+         tl.col = "black")
+```
+
+# Preprocessing 
+
+`PH`, the target variable has missing values. 
+
+```{r}
+preprocess_
+
+```
+
+```{r}
+
+```
+
+```{r}
+cor(data %>%
+               select(where(is.numeric)),
+             use = "pairwise.complete.obs")
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+names(data)
+```
+
+
+
+
+
+
+
+

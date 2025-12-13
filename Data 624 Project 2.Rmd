@@ -1,6 +1,6 @@
 ---
 title: "DATA 624 Project"
-author: "Susanna Wong"
+author: "Susanna Wong, Ana Collado, Gullit Navarrete"
 date: "2025-12-01"
 output:
   html_document:
@@ -18,6 +18,20 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(DataExplorer)
+library(dplyr)
+library(psych)
+library(ggplot2)
+library(tidyverse)
+library(janitor)
+library(interactions)
+library(knitr)
+library(kableExtra)
+library(pracma)
+library(randomForest)
+library(caret)
+library(partykit)
+theme_set(theme_bw())
 ```
 
 # Objective
@@ -80,7 +94,13 @@ sum(is.na(data))
 Every column has missing values except `Pressure.Vacuum` and `Air.Pressurer`.
 
 ```{r}
-sapply(data, function(x) sum(is.na(x)))
+na_summary<- data.frame(variable= names(data), na_count= colSums(is.na(data)),
+                        percent_na= colMeans(is.na(data)) * 100) %>%
+  arrange(desc(percent_na))
+na_summary
+
+na_summary %>%
+  summarize(total_na= sum(na_count))
 ```
 
 Below is the percentage of missing data for each column. `MFR` has the highest percentage of missing data but it is only accounts about 8.25%. The amount of missing values is not significant so we should not drop any observations with missing values. We should impute the missing values later. 
@@ -150,7 +170,7 @@ ggplot(data,
   geom_bar() +
   theme_minimal() + 
   theme(legend.position = "none") +
-  labs( title = "Brand Distribution",
+  labs( title = "Brand Frequency",
         x = "Brand",
         y = "Count")
 ```
@@ -220,7 +240,45 @@ cor(data %>%
              use = "pairwise.complete.obs")
 
 ```
+--------------------------------------------------------------------------------
 
+#Linear Model- Multicollinearity
+Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal. In this section we'll restrict which variables will be fed into the model. Milticollinearity can effect the output coefficients and the model interpretatibility. We can't afford to lose grip on these in reporting to our stakeholders.
+
+To assess this, we'll separate the response variable from the predictors.
+
+```{r correlation_table_v2}
+predictors <- data[, names(data) != "ph"]
+response   <- data$ph
+
+ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
+
+correlations <- ph_corr$r[, 1]
+
+p_values <- ph_corr$p[, 1]
+
+ph_table <- data.frame(r= correlations, p= p_values)
+
+ph_table %>% 
+  arrange(desc(r))
+```
+The `correlation table r` shows the strength and direction of the relationship of each variable with our response variables ph. The Pairwise calculations ignore NA values which will be useful for now. Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity. We'll use findCorrelation() from the caret package, and use the cutoff specified in the algorithm description (Lin, 99).
+
+```{r predictor_v_predictor}
+pred_numerical <- predictors[, sapply(predictors, is.numeric)]
+ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
+
+findCorrelation(ppcor, cutoff = 0.7)
+```
+
+
+```{r multicolinearity}
+colnames(pred_numerical)[findCorrelation(ppcor, cutoff = 0.7)]
+corPlot(ppcor, numbers = TRUE, upper = TRUE, diag = FALSE, main = "Predictor v Predictor Correlation Plot")
+```
+The correlation plot shows variables related to liquid density including CarbVolume, Density, Balling, BallingLvl, CarbRel, and AlchRel have pairwise correlations above 0.7. Though different measurements, these measure density and will be redundant in a linear regression model. To preserve the model's interpretability, we'll stick to the Denstiy variable.
+
+Further, variables that share measurements of flow are also identified as above the 0.7 threshold. HydPressure2, HydPressure3, FillerLevel, FillerSpeed. Of these  and CarbTemp
 
 ```{r}
 
@@ -231,19 +289,11 @@ cor(data %>%
 
 ```
 
+--------------------------------------------------------------------------------
+#References
 
-```{r}
-
-```
-
-```{r}
-
-```
-
-
-```{r}
-names(data)
-```
+BandB Definition and Meaning | Tastings. https://www.tastings.com/Drinkipedia/B-Terms.aspx.
+Lin, Hui. Practitioner’s Guide to Data Science. With Ming Li, 1st ed, CRC Press LLC, 2023. Chapman and Hall/CRC Data Science Series. K10plus ISBN.
 
 
 

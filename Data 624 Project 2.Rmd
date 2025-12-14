@@ -33,6 +33,7 @@ library(pracma)
 library(randomForest)
 library(caret)
 library(partykit)
+library(car)
 
 ```
 # Objective
@@ -531,29 +532,20 @@ cubist_pred <- predict(cubist_model1, test_final)
 postResample(pred = cubist_pred, obs = test_final$PH)
 ```
 
+------------------------------------------------------------------------
 
-```{r}
+# Linear Model- Multicollinearity
 
-```
-
-```{r}
-
-```
-
-
-#Linear Model- Multicollinearity
-Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal. In this section we'll restrict which variables will be fed into the model. Milticollinearity can effect the output coefficients and the model interpretatibility. We can't afford to lose grip on these in reporting to our stakeholders.
-
-
+Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal.We've taken a look at a linear model but we'll address the multicolinearity of the datase.
+In this section we'll restrict which variables will be fed into the model.
+Milticollinearity can effect the output coefficients and the model interpretatibility.
+We can't afford to lose grip on these in reporting to our stakeholders.
 To assess this, we'll separate the response variable from the predictors.
 
 ```{r correlation_table_v2}
-predictors <- data[, names(data) != "PH"]
-response   <- data$PH
+predictors <- data[, names(data) != "ph"]
+response   <- data$ph
 ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
-```
-
-```{r}
 correlations <- ph_corr$r[, 1]
 p_values <- ph_corr$p[, 1]
 ph_table <- data.frame(r= correlations, p= p_values)
@@ -561,7 +553,9 @@ ph_table %>%
   arrange(desc(r))
 ```
 
-The `correlation table r` shows the strength and direction of the relationship of each variable with our response variables ph. The Pairwise calculations ignore NA values which will be useful for now. Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity. We'll use findCorrelation() from the caret package, and use the cutoff specified in the algorithm description (Lin, 99).
+The `correlation table r` shows the strength and direction of the relationship of each variable with our response variable `ph`. The Pairwise calculations ignore NA values which is useful.
+Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity.
+We'll use findCorrelation() from the caret package which will use the cutoff 0.7 (Lin, 99) as threshold to point out the clusters.
 
 ```{r predictor_v_predictor}
 pred_numerical <- predictors[, sapply(predictors, is.numeric)]
@@ -569,8 +563,136 @@ ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
 findCorrelation(ppcor, cutoff = 0.7)
 ```
 
+The function prints the column numbers.
+We'll have it output the column names
+
+```{r multicolinearity}
+colnames(pred_numerical)[findCorrelation(ppcor, cutoff = 0.7)]
+```
+
+The named variables are flagged as highly correlated clusters, above our threshold.
+We'll examine the correlation plot
+
+```{r corr_plot, fig.align='center', fig.width= 8, fig.length= 8}
+corrplot(ppcor, title ="Predictor v Predictor Correlation", outline = TRUE, type = "full")
+```
+
+The correlation plot shows variables related to liquid density including CarbVolume, Density, Balling, BallingLvl, CarbRel, and AlchRel have pairwise correlations above 0.7.
+Though different measurements, these measure density and will be redundant in a linear regression model.
+To preserve the model's interpretability, we'll run "variance inflation factor" vif() from the `car` package to double check.
+
+Further, variables that share measurements of flow are also identified as above the 0.7 threshold.
+HydPressure2, HydPressure3, FillerLevel, FillerSpeed.
+Of these CarbTemp is
+
+```{r}
+#--Density variables
+lm2a <- lm(PH ~ Density+ Balling+ BallingLvl+ CarbRel+ AlchRel,data = data)
+vif(lm2a)
+summary(lm2a)
+
+#-- dropping redundant variables
+lm2b <- lm(PH ~ Density + CarbRel, data = data)
+vif(lm2b)
+
+data2<- data %>% 
+  select(-c(Balling, BallingLvl, AlchRel))
+
+#--Flow variables
+lm3a <- lm(PH ~ MnfFlow+ HydPressure3+ HydPressure2+ FillerLevel+ FillerSpeed,data = data)
+vif(lm3a) 
+summary(lm3a)
+
+data2<- data2 %>% 
+  select(-c(HydPressure3))
+
+lm_full <- lm(PH ~ ., data = data2)
+summary(lm_full)
+plot(lm_full, which = 1)
+
+plot(lm_full, which = 2)
+shapiro.test(residuals(lm_full))
+```
+
+```{r include=TRUE, eval=FALSE}
+qqnorm(residuals(lm_full))+
+qqline(residuals(lm_full))
+```
+
+![](images/m.linear_qqplot)
+
+```{r}
+n<- nrow(data)
+test_id<- sample(seq_len(n), size = floor(0.30 * n))
+
+test_a  <- data[test_id, ]
+train_a <- data[-test_id, ]
+
+test_a$PH_hat <- predict(lm_full, newdata = test_a)
+rmse <- sqrt(mean((test_a$PH- test_a$PH_hat)^2, na.rm = TRUE))
+mae  <- mean(abs(test_a$PH- test_a$PH_hat), na.rm = TRUE)
+
+c(RMSE = rmse, MAE = mae)
+```
+
+```{r multi-obs_v_preditcted}
+ggplot(test_a, aes(x = PH, y = PH_hat)) +
+  geom_point(alpha = 0.6, position = "jitter") +
+  geom_abline(intercept = 0, linetype = "dashed", colour = "blue") +
+  labs(
+    title = "Observed vs Predicted PH",
+    x = "Observed",
+    y = "Predicted") +
+  theme_minimal()
+```
+
+The model can explain \~43% of the variance in the data.
+The final model outputs an RMSE of about 0.13 and MAE of 0.10.
+While in most cases the difference of 0.1 points to a decent model, in the case of ph we should attempt to find a more accurate model.
+
+# Random Forest
+
+Random Forest doesn't not require handling of multicolinearity.
+
+```{r data_split}
+data <- data %>%
+  clean_names() %>%
+  na.omit()
 
 
+n<- nrow(data)
+test_id<- sample(seq_len(n), size = floor(0.30 * n))
+
+test_a  <- data[test_id, ]
+train_a <- data[-test_id, ]
+```
+
+```{r train}
+library(randomForest)
+library(caret)
+library(partykit)
+library(janitor)
+
+lm4a <- randomForest(ph ~ .,data= train_a, importance = TRUE, ntree = 10000)
+rfImp1 <- varImp(lm4a, scale = FALSE)
+print(importance(lm4a))
+
+varImpPlot(lm4a, sort = TRUE, main = "Variable Importance using VarImpPlot()")
+```
+
+```{r predict}
+rf_pred <- predict(lm4a, newdata = test_a)
+
+rf_rmse <- sqrt(mean((test_a$ph - rf_pred)^2))
+rf_mae  <- mean(abs(test_a$ph - rf_pred))
+
+c(RMSE = rf_rmse, MAE = rf_mae)
+
+```
+
+The Random Forest model output a lower lower prediction error (RMSE \~0.09) compared to the linear model (RMSE \~0.13).
+This means there may be nonlinear interactions within the process variables.
+The improvement wasn't drastic but still meaningful.
 
 
 

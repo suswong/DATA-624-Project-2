@@ -20,6 +20,21 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(DataExplorer)
+library(dplyr)
+library(psych)
+library(ggplot2)
+library(tidyverse)
+library(janitor)
+library(interactions)
+library(kableExtra)
+library(pracma)
+library(randomForest)
+library(caret)
+library(partykit)
+
+```
 # Objective
 
 # Introduction
@@ -80,7 +95,12 @@ plot_intro(data)
 844 observations contains missing data. 
 
 ```{r}
-sum(is.na(data))
+na_summary<- data.frame(variable= names(data), na_count= colSums(is.na(data)),
+                        percent_na= colMeans(is.na(data)) * 100) %>%
+  arrange(desc(percent_na))
+na_summary
+na_summary %>%
+  summarize(total_na= sum(na_count))
 ```
 
 Every column has missing values except `Pressure.Vacuum` and `Air.Pressurer`.
@@ -152,7 +172,7 @@ ggplot(data,
   geom_bar() +
   theme_minimal() + 
   theme(legend.position = "none") +
-  labs( title = "Brand Distribution",
+  labs( title = "Brand Frequency",
         x = "Brand",
         y = "Count")
 ```
@@ -506,7 +526,6 @@ cubist_model1 <- train(PH ~. ,
 cubist_model1
 ```
 
-
 ```{r}
 cubist_pred <- predict(cubist_model1, test_final)
 postResample(pred = cubist_pred, obs = test_final$PH)
@@ -517,17 +536,38 @@ postResample(pred = cubist_pred, obs = test_final$PH)
 
 ```
 
-
-```{r}
-
-```
-
 ```{r}
 
 ```
 
 
+#Linear Model- Multicollinearity
+Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal. In this section we'll restrict which variables will be fed into the model. Milticollinearity can effect the output coefficients and the model interpretatibility. We can't afford to lose grip on these in reporting to our stakeholders.
 
+
+To assess this, we'll separate the response variable from the predictors.
+
+```{r correlation_table_v2}
+predictors <- data[, names(data) != "PH"]
+response   <- data$PH
+ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
+```
+
+```{r}
+correlations <- ph_corr$r[, 1]
+p_values <- ph_corr$p[, 1]
+ph_table <- data.frame(r= correlations, p= p_values)
+ph_table %>% 
+  arrange(desc(r))
+```
+
+The `correlation table r` shows the strength and direction of the relationship of each variable with our response variables ph. The Pairwise calculations ignore NA values which will be useful for now. Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity. We'll use findCorrelation() from the caret package, and use the cutoff specified in the algorithm description (Lin, 99).
+
+```{r predictor_v_predictor}
+pred_numerical <- predictors[, sapply(predictors, is.numeric)]
+ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
+findCorrelation(ppcor, cutoff = 0.7)
+```
 
 
 

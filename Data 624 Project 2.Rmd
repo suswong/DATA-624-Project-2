@@ -1,6 +1,6 @@
 ---
 title: "DATA 624 Project"
-author: "Susanna Wong"
+author: "Susanna Wong, Ana Collado, Gullit Navarrete"
 date: "2025-12-01"
 output:
   html_document:
@@ -55,7 +55,7 @@ Column names were cleaned and standardized to make them more consistent and easi
 - Renamed `Carb.Pressure` and `Carb.Pressure1` to `CarbPressure1` and `CarbPressure2` to following the naming of `HydPressure1` - `HydPressure4`
 
 ```{r}
-names(data) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSC CO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
+names(data) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSCCO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
 "FillerLevel",      "FillerSpeed" ,     "Temperature",       "Usagecont",       
 "CarbFlow" ,        "Density"   ,        "MFR"       ,        "Balling" ,         
 "PressureVacuum" ,  "PH"    ,            "OxygenFiller" ,    "BowlSetpoint"   , 
@@ -192,7 +192,6 @@ s.eval <- s.eval %>%
 
 # Preprocessing
 
-
 `PH`, the target variable has missing values. We should drop any observations that contains missing values in `PH`
 
 `HydPressure1` was dropped as it has near zero variance. 
@@ -244,6 +243,29 @@ test_transformed <- predict(trans, test1%>%
 test_final <- cbind(test_transformed, PH = test1$PH)
 ```
 
+# Correlation
+
+The correlation plot reveals multicollienarity is present. 
+
+```{r}
+library(corrplot)
+corrplot(cor(train_final %>%
+               select(where(is.numeric)),
+             use = "pairwise.complete.obs"),
+         type = "lower",
+         order = "alphabet",
+         tl.cex = 0.6,
+         tl.col = "black")
+```
+
+# Modeling
+
+## Simple Linear Regression
+
+This model is simple, interpret able, and creates a good baseline. 
+
+### Model 1
+
 ```{r}
 set.seed(1)
 
@@ -265,11 +287,16 @@ lm_pred <- predict(lm_model, test_final)
 postResample(pred = lm_pred, obs = test_final$PH)
 ```
 
+Earlier in the correlation plot, we saw multicollinearity is present. The Variance Inflation Factor can help identify variables that causes multicollinearity. We should drop high-VIF predictors. 
 
-```{r}
+```{r, message=False}
 library(car)
 vif(lm_model$finalModel)
 ```
+
+BallingLvl has the highest VIF value. Dropping it for our next models. 
+
+### Model 2
 
 ```{r}
 train_final_reduced <- train_final %>%
@@ -290,8 +317,14 @@ postResample(pred = lm_pred2, obs = train_final_reduced$PH)
 ```
 
 ```{r}
+vif(lm_model2$finalModel)
+```
+
+### Model 3
+
+```{r}
 train_final_reduced <- train_final %>%
-  select(-BallingLvl, -AlchRel)
+  select(-BallingLvl, -Balling)
 
 set.seed(2)
 lm_model3 <- train(PH ~. , 
@@ -310,6 +343,8 @@ postResample(pred = lm_pred3, obs = train_final_reduced$PH)
 
 ## Ridge
 
+Ridge can handle high correlated predictors by shrinking their coefficients.
+
 ```{r}
 set.seed(11)
 
@@ -327,32 +362,154 @@ ridge_pred <- predict(ridge_model, test_final)
 postResample(pred = ridge_pred, obs = test_final$PH)
 ```
 
-## lasso/elastic net
-## random forest
+## elastic net
+
+```{r}
+set.seed(111)
+
+enet_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "enet", 
+                  trControl = trainControl(method = "cv", number = 5)
+                  )
+
+summary(enet_model)
+```
+
+```{r}
+enet_pred <- predict(enet_model, test_final)
+postResample(pred = enet_pred, obs = test_final$PH)
+```
+
+
+## Random Forest
+
+```{r}
+set.seed(11111)
+
+rf_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "rf", 
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneLength = 5
+                  )
+
+summary(rf_model)
+```
+
+```{r}
+rf_pred <- predict(rf_model, test_final)
+postResample(pred = rf_pred, obs = test_final$PH)
+```
+
 ## SVM
+
+## Model 1 
+
+There are several types of SVM. We will use radial basis kernel.
+
+```{r}
+set.seed(11111)
+
+svm_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "svmRadial", 
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneLength = 10
+                  )
+
+summary(svm_model)
+```
+
+```{r}
+svm_pred <- predict(svm_model, test_final)
+postResample(pred = svm_pred, obs = test_final$PH)
+```
+
+## Model 2
+
+```{r}
+set.seed(11111)
+
+svm_model2 <- train(PH ~. , 
+                  data = train_final,
+                  method = "svmPoly",
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneLength = 5
+                  )
+
+summary(svm_model2)
+```
+
+```{r}
+svm_pred2 <- predict(svm_model2, test_final)
+postResample(pred = svm_pred2, obs = test_final$PH)
+```
+
+## KNN
+
+```{r}
+set.seed(111111)
+
+knn_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "knn", 
+                  preProc = c("scale", "center"),
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneLength = 10
+                  )
+
+plot(knn_model)
+```
+
+```{r}
+knn_pred <- predict(knn_model, test_final)
+postResample(pred = knn_pred, obs = test_final$PH)
+```
+
+
+```{r}
+set.seed(111112)
+
+knn_model2 <- train(PH ~. , 
+                  data = train_final,
+                  method = "kknn", 
+                  preProc = c("scale", "center"),
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneGrid = expand.grid(kmax = seq(3,30,2), 
+                                         distance = 2,
+                                         kernel = c("rectangular", "triangular","epanechnikov")))
+plot(knn_model2)
+```
+
+```{r}
+knn_pred2 <- predict(knn_model2, test_final)
+postResample(pred = knn_pred2, obs = test_final$PH)
+```
+
 ## gbm or xgboost
+
+
 ## cubist
 
-
-
-# Correlation
-
-The correlation plot reveals multicollienarity is present. 
-
 ```{r}
-library(corrplot)
-corrplot(cor(train_final %>%
-               select(where(is.numeric)),
-             use = "pairwise.complete.obs"),
-         type = "lower",
-         order = "alphabet",
-         tl.cex = 0.6,
-         tl.col = "black")
+set.seed(1111111)
+
+cubistGrid <- expand.grid(committees = c(5, 10, 20, 25, 30, 35),
+                          neighbors = c(3, 5, 7, 9))
+
+cubist_model1 <- train(PH ~. , 
+                  data = train_final,
+                  method = "cubist",
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneGrid = cubistGrid)
+cubist_model1
 ```
 
 
 ```{r}
-
+cubist_pred <- predict(cubist_model1, test_final)
+postResample(pred = cubist_pred, obs = test_final$PH)
 ```
 
 
@@ -370,9 +527,6 @@ corrplot(cor(train_final %>%
 ```
 
 
-```{r}
-names(data)
-```
 
 
 

@@ -835,3 +835,40 @@ If more time allows, we can attempt to improve the model further by:
 -   further hyperparameter tuning
 -   feature engineering: create new interactions and nonlinear terms
 -   collect additional features that may influence the pH level like ingredient concentration
+
+
+# Linear Model- Multicollinearity
+Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal.We've taken a look at a linear model but we'll address the multicolinearity of the datase.
+In this section we'll restrict which variables will be fed into the model.
+Milticollinearity can effect the output coefficients and the model interpretatibility, which is important for reporting to our stakeholders.
+To assess this, we'll separate the response variable from the predictors.
+```{r correlation_table_v2}
+data<- data %>% 
+  clean_names()
+predictors <- data[, names(data) != "PH"]
+response   <- data$PH
+ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
+correlations <- ph_corr$r[, 1]
+p_values <- ph_corr$p[, 1]
+ph_table <- data.frame(r= correlations, p= p_values)
+ph_table %>% 
+  arrange(desc(r))
+```
+The `correlation table r` shows the strength and direction of the relationship of each variable with our response variable `ph`. The Pairwise calculations ignore NA values which is useful.
+Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity.
+We'll use findCorrelation() from the caret package which will use the cutoff 0.7 (Lin, 99) as threshold to point out the clusters.
+```{r predictor_v_predictor}
+pred_numerical <- predictors[, sapply(predictors, is.numeric)]
+ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
+findCorrelation(ppcor, cutoff = 0.7)
+```
+The function prints the column numbers.
+We'll have it output the column names
+```{r multicolinearity}
+colnames(pred_numerical)[findCorrelation(ppcor, cutoff = 0.7)]
+```
+The named variables are flagged as highly correlated clusters, above our threshold.
+We'll examine the correlation plot
+```{r corr_plot, fig.align='center', fig.width= 8, fig.length= 8}
+corrplot(ppcor, title ="Predictor v Predictor Correlation", outline = TRUE, type = "full")
+```

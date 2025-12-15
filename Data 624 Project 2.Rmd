@@ -33,6 +33,7 @@ library(pracma)
 library(randomForest)
 library(caret)
 library(partykit)
+library(corrplot)
 
 ```
 
@@ -55,7 +56,12 @@ s.eval <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/head
 head(data)
 ```
 
-There are 2571 observations with 33 variables. Preliminary summary shows there are missing values in most columns. 
+There are 2571 observations with 33 variables.
+Preliminary summary shows there are missing values and outliers in most columns.
+
+PH level ranges from 7.88 to 9.36 with an mean values of 8.55.
+Temperature level ranges from 63.6 to 76.2 with a mean value of 65.97.
+
 
 ```{r}
 summary(data)
@@ -85,12 +91,17 @@ names(s.eval) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPress
 
 ## Missing Data
 
-The plot below show the percentage of data is discrete or continuous. `BrandCode` is the discrete variable while the rest of the variables are continuous. Approximately 79% of the rows of the data is complete, which means about 20% of the observation is missing some values. We should be cautious when dealing missing values. It would be ideal to impute any missing values instead of omitting any missing values. 
+The plot below show the percentage of data is discrete or continuous.
+`BrandCode` is the discrete variable while the rest of the variables are continuous.
+Approximately 79% of the rows of the data is complete, which means about 20% of the observation is missing some values.
+We should be cautious when dealing missing values.
+It would be ideal to impute any missing values instead of omitting any missing values.
 
 ```{r}
 library(DataExplorer)
 plot_intro(data)
 ```
+
 844 cells contains missing data.
 
 ```{r}
@@ -143,49 +154,53 @@ The following variables appears normal distribution:
 Variables that appears skewed will need transformation to be performed.
 The following variables appears right skewed:
 
--   Hyd Pressure 1 (There is a significant amount of values at 0) - PSC\
--   PSC Fill\
--   PSC CO2 - Pressure Vacuum\
--   Temperature - Oxygen Filler
+Hyd Pressure 1 (There is a significant amount of values at 0) PSC PSC Fill PSC CO2 - Pressure Vacuum Temperature - Oxygen Filler
 
-The following variables appears left skewed:\
-- Hyd Pressure2 (There is a significant amount of values at 0)\
-- Hyd Pressure3 (There is a significant amount of values at 0)\
-- Hyd Pressure4\
-- Mnf Flow (Nearly half of the data contains -100 and the other half of the data contains continuous values from 0 to 200.)\
-- MFR
+The following variables appears left skewed:
+
+-   Hyd Pressure2 (There is a significant amount of values at 0)
+
+-   Hyd Pressure3 (There is a significant amount of values at 0)
+
+-   Hyd Pressure4
+
+-   Mnf Flow (Nearly half of the data contains -100 and the other half of the data contains continuous values from 0 to 200.)
+
+-   MFR
 
 The following variables appear bimodal.
 
-\- Balling
+-   Balling
 
-\- Balling Lvl
+-   Balling Lvl
 
-\- Carb Rel
+-   Carb Rel
 
-\- Density
+-   Density
 
 Variables that are highly multimodal can reveal that they may be operated at different setting or conditions.
 Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.The following variables appear multimodal.
-- Bowl Set Point - Pressure Set Point
+
+-   Bowl Set Point
+-   Pressure Set Point
 
 ```{r}
 plot_histogram(data)
 ```
 
-Below shows a boxplot of each variable by BrandCode. It reveals:
+Below shows a boxplot of each variable by BrandCode.
+It reveals:
 
-- Outliers are present in the dataset.
-- All features are consistent between all brands exempt: CarbPressure1, Carb Volume , FillPressure, Balling, Density, HydPressure4, Temperature
-- Brand A and D has higher sugar content (balling) than the other two brands which results a higher density in brands A and D. 
-- Brand B requires higher temperature,while Brand requires lower temperatures. 
-- Brand D require lower HydPressure4 than other brands.
-- Brand D has higher alcohol content, followed by Brand A. Brand B and C has lower and similar alcohol content. 
+-   Outliers are present in the dataset.
+-   All features are consistent between all brands exempt: CarbPressure1, Carb Volume , FillPressure, Balling, Density, HydPressure4, Temperature
+-   Brand A and D has higher sugar content (balling) than the other two brands which results a higher density in brands A and D.
+-   Brand B requires higher temperature,while Brand requires lower temperatures.
+-   Brand D require lower HydPressure4 than other brands.
+-   Brand D has higher alcohol content, followed by Brand A. Brand B and C has lower and similar alcohol content.
 
 ```{r}
 plot_boxplot(data, by = "BrandCode")
 ```
-
 
 Almost half of the observations are brand C.
 Brands A and C have similar observations.
@@ -214,8 +229,6 @@ ggplot(data,
         x = "Brand",
         y = "PH")
 ```
-
-
 
 ## Transforming Variables to factors
 
@@ -305,6 +318,10 @@ test_final <- cbind(test_transformed, PH = test1$PH)
 
 # Correlation
 
+The following variables is significantly positive correlated with PH: BowlSetPoint, FillerLevel, Carb Flow. 
+
+The following variables is significantly negative correlated with PH: MnfFlow, UsageCount, Fill Pressure
+
 ## Linear Model- Multicollinearity
 
 Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal.
@@ -362,7 +379,13 @@ HydPressure2, HydPressure3, FillerLevel, FillerSpeed.
 
 ## Correlation Plot Part 2
 
-Previously, we show a correlation plot of data before imputation. Below is a correlation plot of data after imputation. The correlation plot continues to reveal multicollienarity is present.
+Previously, we show a correlation plot of data before imputation.
+Below is a correlation plot of data after imputation.
+The correlation plot continues to reveal multicollienarity is present.
+
+The following variables is significantly positive correlated with PH: BowlSetPoint, FillerLevel, Carb Flow. 
+
+The following variables is significantly negative correlated with PH: MnfFlow, UsageCount, Fill Pressure
 
 ```{r, message=FALSE}
 library(corrplot)
@@ -377,7 +400,7 @@ corrplot(cor(train_final %>%
 
 # Modeling
 
-After performing EDA and preprocessing, the following models were tested to help predict the ph level: linear regression, ridge, elastic net, random forest, SVM, KNN, GBM, and Cubist.
+After performing EDA and preprocessing, the following models were tested to help predict the ph level: linear regression, ridge, elastic net, random forest, SVM, KNN, GBM, and Cubist. Tree Based Models are expected to perform better than linear models as they are robust to outliers and multicollinearity.
 
 ## Simple Linear Regression
 
@@ -481,8 +504,6 @@ The model explains about 42% of the variance of the test data.
 lm_pred3 <- predict(lm_model3, train_final_reduced)
 postResample(pred = lm_pred3, obs = train_final_reduced$PH)
 ```
-
-
 
 ## Ridge
 
@@ -607,7 +628,7 @@ plot(varImp(svm_model), top = 10)
 ## KNN
 
 KNN is a nonparametric model that can help predict the PH based on the closest training observations.
-It utilize the idea of beverage observations with similar conditions shold have similar ph levels.
+It utilize the idea of beverage observations with similar conditions should have similar PH levels.
 
 ### Model 1
 
@@ -770,6 +791,12 @@ cubist_pred2 <- predict(cubist_model2, test_final)
 postResample(pred = cubist_pred2, obs = test_final$PH)
 ```
 
+Below are the top predictors for this model. 
+
+```{r}
+plot(varImp(cubist_model2))
+```
+
 # Model Comparison
 
 | Model               | RMSE       | R\^2       | MAE        |
@@ -784,9 +811,11 @@ postResample(pred = cubist_pred2, obs = test_final$PH)
 | Ridge               | 0.1337878  | 0.4042556  | 0.1037787  |
 
 The Cubist model outperform all the other models as it has the highest 𝑅2 and lowest RMSE value.
-However, it is still not an ideal model as it only explains about 67% of the variance of the test data.
+However, it is still not an ideal model as it only explains about 67% of the variance of the test data. All tree based model perform better than the other models as they are robust to outliers and multicollinearity, which were all present in our data.
 
 # Prediction
+
+Use the best model (Cubist) to predict the PH values onto the `student evalution` dataset.
 
 ```{r}
 eval_data <- s.eval %>%
@@ -828,7 +857,7 @@ In this project, we explored and modeled the features affecting the pH level in 
 After performing EDA and preprocessing, the following models were tested to help predict the ph level: linear regression, ridge, elastic net, random forest, SVM, KNN, GBM, and Cubist.
 Among all models, the Cubist model outperform all the other models as it has the highest 𝑅2 and lowest RMSE value.
 
-Common key predictors across models includes, MnfFlow, OygenFiller, Pressure settings, Balling levels, and Temperature.
+Common key predictors across models includes, MnfFlow, OygenFiller, Pressure settings, Balling levels (sugar levels), and Temperature.
 MnfFlow consistently emerged as the top predictor across most models.
 By controlling these predictors, ABC Beverage can maintain more consistent pH levels of the beverages.
 
@@ -840,4 +869,3 @@ If more time allows, we can attempt to improve the model further by:
 -   further hyperparameter tuning
 -   feature engineering: create new interactions and nonlinear terms
 -   collect additional features that may influence the pH level like ingredient concentration
-

@@ -20,7 +20,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, message=FALSE}
 library(DataExplorer)
 library(dplyr)
 library(psych)
@@ -35,13 +35,10 @@ library(caret)
 library(partykit)
 
 ```
-# Objective
 
 # Introduction
 
-The goal of the project is to understand the manufacturing process and the predictive factor of the beverage. Create a predictive model of PH.
-
-
+The goal of the project is to understand the manufacturing process and the predictive factor of the beverage.Create a predictive model of PH.
 
 # Data Exploration
 
@@ -58,15 +55,16 @@ s.eval <- read.csv("https://raw.githubusercontent.com/suswong/DATA-624/refs/head
 head(data)
 ```
 
-There are 2571 observations with 33 variables. 
+There are 2571 observations with 33 variables. Preliminary summary shows there are missing values in most columns. 
 
 ```{r}
 summary(data)
 ```
+
 ## Renaming Variables
 
-Column names were cleaned and standardized to make them more consistent and easier to work with in R. 
-- Spaces and special character were removed. 
+Column names were cleaned and standardized to make them more consistent and easier to work with in R.
+- Spaces and special character were removed.
 - Renamed `Carb.Pressure` and `Carb.Pressure1` to `CarbPressure1` and `CarbPressure2` to following the naming of `HydPressure1` - `HydPressure4`
 
 ```{r}
@@ -77,7 +75,7 @@ names(data) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressur
 "PressureSetpoint", "AirPressurer",    "AlchRel" ,         "CarbRel"  ,       
 "BallingLvl" )
 
-names(s.eval) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSC CO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
+names(s.eval) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPressure1","CarbTemp", "PSC", "PSCFill", "PSCCO2", "MnfFlow", "CarbPressure2","FillPressure", "HydPressure1", "HydPressure2",     "HydPressure3",     "HydPressure4",    
 "FillerLevel",      "FillerSpeed" ,     "Temperature",       "Usagecont",       
 "CarbFlow" ,        "Density"   ,        "MFR"       ,        "Balling" ,         
 "PressureVacuum" ,  "PH"    ,            "OxygenFiller" ,    "BowlSetpoint"   , 
@@ -87,12 +85,13 @@ names(s.eval) <- c("BrandCode", "CarbVolume","FillOunces", "PCVolume","CarbPress
 
 ## Missing Data
 
+The plot below show the percentage of data is discrete or continuous. `BrandCode` is the discrete variable while the rest of the variables are continuous. Approximately 79% of the rows of the data is complete. 
+
 ```{r}
 library(DataExplorer)
 plot_intro(data)
 ```
-
-844 observations contains missing data. 
+844 cells contains missing data.
 
 ```{r}
 na_summary<- data.frame(variable= names(data), na_count= colSums(is.na(data)),
@@ -109,7 +108,10 @@ Every column has missing values except `Pressure.Vacuum` and `Air.Pressurer`.
 sapply(data, function(x) sum(is.na(x)))
 ```
 
-Below is the percentage of missing data for each column. `MFR` has the highest percentage of missing data but it is only accounts about 8.25%. The amount of missing values is not significant so we should not drop any observations with missing values. We should impute the missing values later. 
+Below is the percentage of missing data within in each variable.
+`MFR` column has the highest percentage of missing data but it is only accounts about 8.25%.
+The amount of missing values is not significant so we should not drop any observations with missing values.
+We should impute the missing values later.
 
 ```{r, message=FALSE}
 library(DataExplorer)
@@ -123,47 +125,70 @@ data$BrandCode <- as.factor(data$BrandCode)
 
 ## Distribution
 
-Variables with good range and clear distribution is likely to show a relationship with the dependent variable. The following variables appears normal distribution:
-- Carb Pressure 1
-- Carb Pressure 2
-- Carb Temp
-- Carb Volume
-- Fill Ounces
-- PC Volume
+Variables with good range and clear distribution is likely to show a relationship with the dependent variable.
+The following variables appears normal distribution:
 
-Variables that appears skewed will need transformation to be performed. 
+\- Carb Pressure 1
+
+\- Carb Pressure 2
+
+\- Carb Temp
+
+\- Carb Volume
+
+\- Fill Ounces
+
+\- PC Volume
+
+Variables that appears skewed will need transformation to be performed.
 The following variables appears right skewed:
-- Hyd Pressure 1 (There is a significant amount of values at 0) 
-- PSC                
-- PSC Fill          
-- PSC CO2
-- Pressure Vacuum    
-- Temperature
-- Oxygen Filler 
 
-The following variables appears left skewed:  
-- Hyd Pressure2 (There is a significant amount of values at 0)     
-- Hyd Pressure3 (There is a significant amount of values at 0)      
-- Hyd Pressure4  
-- Mnf Flow  (There is a significant amount of values at 0)          
+-   Hyd Pressure 1 (There is a significant amount of values at 0) - PSC\
+-   PSC Fill\
+-   PSC CO2 - Pressure Vacuum\
+-   Temperature - Oxygen Filler
+
+The following variables appears left skewed:\
+- Hyd Pressure2 (There is a significant amount of values at 0)\
+- Hyd Pressure3 (There is a significant amount of values at 0)\
+- Hyd Pressure4\
+- Mnf Flow (Nearly half of the data contains -100 and the other half of the data contains continuous values from 0 to 200.)\
 - MFR
-         
-The following variables appear bimodal. 
-- Balling 
-- Balling Lvl  
-- Carb Rel 
-- Density
 
-Variables that are highly multimodal can reveal that they may be operated at different setting or conditions. Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.The following variables appear multimodal. 
-- Bowl Set Point
-- Pressure Set Point
+The following variables appear bimodal.
 
+\- Balling
+
+\- Balling Lvl
+
+\- Carb Rel
+
+\- Density
+
+Variables that are highly multimodal can reveal that they may be operated at different setting or conditions.
+Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.The following variables appear multimodal.
+- Bowl Set Point - Pressure Set Point
 
 ```{r}
 plot_histogram(data)
 ```
 
-Almost half of the observations are brand C. Brands A and C have similar observations.
+Below shows a boxplot of each variable by BrandCode. It reveals:
+
+- Outliers are present in the dataset.
+- All features are consistent between all brands exempt: CarbPressure1, Carb Volume , FillPressure, Balling, Density, HydPressure4, Temperature
+- Brand A and D has higher sugar content (balling) than the other two brands which results a higher density in brands A and D. 
+- Brand B requires higher temperature,while Brand requires lower temperatures. 
+- Brand D require lower HydPressure4 than other brands.
+- Brand D has higher alcohol content, followed by Brand A. Brand B and C has lower and similar alcohol content. 
+
+```{r}
+plot_boxplot(data, by = "BrandCode")
+```
+
+
+Almost half of the observations are brand C.
+Brands A and C have similar observations.
 
 ```{r}
 library(ggplot2)
@@ -190,9 +215,13 @@ ggplot(data,
         y = "PH")
 ```
 
+
+
+
 ## Transforming Variables to factors
 
-Variables that are highly multimodal can reveal that they may be operated at different setting or conditions. Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.
+Variables that are highly multimodal can reveal that they may be operated at different setting or conditions.
+Later we may want to transform these discrete variables into factors so that the model treats them as distinct operational settings.
 
 ```{r}
 train_data <- data %>%
@@ -202,7 +231,7 @@ train_data <- data %>%
     BrandCode = as.factor(BrandCode)
   )
 
-s.eval <- s.eval %>%
+seval <- s.eval %>%
   mutate(
     PressureSetpoint = as.factor(PressureSetpoint),
     BowlSetpoint = as.factor(BowlSetpoint),
@@ -212,9 +241,18 @@ s.eval <- s.eval %>%
 
 # Preprocessing
 
-`PH`, the target variable has missing values. We should drop any observations that contains missing values in `PH`
+Summary of preprocessing step:
 
-`HydPressure1` was dropped as it has near zero variance. 
+-   `PH`, the target variable has missing values.
+    We should drop any observations that contains missing values in `PH`. We do not want to impute these values as it we will predict the ph level based on other features.
+
+-   `HydPressure1` was dropped as it has near zero variance.
+
+-   Imputing missing values using `KNN impute`.
+
+-   Perform Box cox transformation to standardize skewed data
+
+-   Center and scale data as some models such as KNN required distance metrics.
 
 ```{r}
 library(tidyr)
@@ -228,6 +266,9 @@ train_filtered <- train_clean_data[, -nearZeroVar(train_clean_data)]
 
 ## Imputing Missing Data
 
+KNN imputation was chosen over other imputation methods as it will use similar conditions between observations to estimate missing values.
+It is good for dataset that has low missingness and contains correlated predictors.
+
 ```{r}
 set.seed(1)
 trainingRows <- createDataPartition(train_filtered$PH,
@@ -238,7 +279,7 @@ train1 <- train_filtered[trainingRows, ]
 test1  <- train_filtered[-trainingRows, ]
 ```
 
-```{r}
+```{r, message=FALSE}
 library(forcats)
 
 train1 <- train1%>%
@@ -265,9 +306,9 @@ test_final <- cbind(test_transformed, PH = test1$PH)
 
 # Correlation
 
-The correlation plot reveals multicollienarity is present. 
+The correlation plot reveals multicollienarity is present.
 
-```{r}
+```{r, message=FALSE}
 library(corrplot)
 corrplot(cor(train_final %>%
                select(where(is.numeric)),
@@ -278,11 +319,66 @@ corrplot(cor(train_final %>%
          tl.col = "black")
 ```
 
+## Linear Model- Multicollinearity
+
+Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal.
+In this section we'll restrict which variables will be fed into the model.
+Milticollinearity can effect the output coefficients and the model interpretatibility.
+We can't afford to lose grip on these in reporting to our stakeholders.
+
+To assess this, we'll separate the response variable from the predictors.
+
+```{r correlation_table_v2}
+predictors <- data[, names(data) != "PH"]
+response   <- data$PH
+ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
+```
+
+```{r}
+correlations <- ph_corr$r[, 1]
+p_values <- ph_corr$p[, 1]
+ph_table <- data.frame(r= correlations, p= p_values)
+ph_table %>% 
+  arrange(desc(r))
+```
+
+The `correlation table r` shows the strength and direction of the relationship of each variable with our response variable `ph`. The Pairwise calculations ignore NA values which is useful.
+
+Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity.
+We'll use findCorrelation() from the caret package which will use the cutoff 0.7 (Lin, 99) as threshold to point out the clusters.
+
+```{r predictor_v_predictor}
+pred_numerical <- predictors[, sapply(predictors, is.numeric)]
+ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
+findCorrelation(ppcor, cutoff = 0.7)
+```
+
+The function prints the column numbers.
+We'll have it output the column names
+
+```{r multicolinearity}
+colnames(pred_numerical)[findCorrelation(ppcor, cutoff = 0.7)]
+```
+
+The named variables are flagged as highly correlated clusters, above our threshold.
+We'll examine the correlation plot
+
+```{r corr_plot, fig.align='center', fig.width= 8, fig.length= 8}
+corrplot(ppcor, title ="Predictor v Predictor Correlation", outline = TRUE, type = "full")
+```
+
+The correlation plot shows variables related to liquid density including CarbVolume, Density, Balling, BallingLvl, CarbRel, and AlchRel have pairwise correlations above 0.7.
+Though different measurements, these measure density and will be redundant in a linear regression model.
+To preserve the model's interpretability, we'll run "variance inflation factor" vif() from the `car` package to double check.
+
+Further, variables that share measurements of flow are also identified as above the 0.7 threshold.
+HydPressure2, HydPressure3, FillerLevel, FillerSpeed.
+
 # Modeling
 
 ## Simple Linear Regression
 
-This model is simple, interpret able, and creates a good baseline. 
+This model is simple, interpretable, and creates a good baseline to predict the pH. It can help us identify which factors have the strongest direct influence to the pH level of the beverages.
 
 ### Model 1
 
@@ -302,19 +398,31 @@ summary(lm_model)
 plot(lm_model$finalModel)
 ```
 
+The model explains about 40% of the variance of the test data.
+This is not ideal.
+
 ```{r}
 lm_pred <- predict(lm_model, test_final)
 postResample(pred = lm_pred, obs = test_final$PH)
 ```
 
-Earlier in the correlation plot, we saw multicollinearity is present. The Variance Inflation Factor can help identify variables that causes multicollinearity. We should drop high-VIF predictors. 
+Below are the top predictors of the pH level of the beverage.
 
-```{r, message=False}
+```{r}
+plot(varImp(lm_model), top = 10)
+```
+
+Earlier in the correlation plot, we saw multicollinearity is present.
+The Variance Inflation Factor can help identify variables that causes multicollinearity.
+We should drop high-VIF predictors.
+
+```{r, message=FALSE}
 library(car)
 vif(lm_model$finalModel)
 ```
 
-BallingLvl has the highest VIF value. Dropping it for our next models. 
+BallingLvl has the highest VIF value.
+Dropping it for our next models.
 
 ### Model 2
 
@@ -331,6 +439,10 @@ lm_model2 <- train(PH ~. ,
 
 summary(lm_model2)
 ```
+
+The model explains about 43% of the variance of the test data.
+Removing one of the highly correlated variable improve the model only slightly.
+
 ```{r}
 lm_pred2 <- predict(lm_model2, train_final_reduced)
 postResample(pred = lm_pred2, obs = train_final_reduced$PH)
@@ -338,6 +450,10 @@ postResample(pred = lm_pred2, obs = train_final_reduced$PH)
 
 ```{r}
 vif(lm_model2$finalModel)
+```
+
+```{r}
+plot(varImp(lm_model2), top = 10)
 ```
 
 ### Model 3
@@ -355,6 +471,8 @@ lm_model3 <- train(PH ~. ,
 
 summary(lm_model3)
 ```
+
+The model explains about 42% of the variance of the test data.
 
 ```{r}
 lm_pred3 <- predict(lm_model3, train_final_reduced)
@@ -377,12 +495,21 @@ ridge_model <- train(PH ~. ,
 summary(ridge_model)
 ```
 
+The model explains about 40% of the variance of the test data.
+
 ```{r}
 ridge_pred <- predict(ridge_model, test_final)
 postResample(pred = ridge_pred, obs = test_final$PH)
 ```
 
-## elastic net
+```{r}
+plot(varImp(ridge_model), top = 10)
+```
+
+## Elastic net
+
+Elastic Net combines Lasso and Ridge penalties by shrinking the coefficients for less important variables and correlated variables.
+It is suitable to that dataset as it has correlated features and many predictors.
 
 ```{r}
 set.seed(111)
@@ -396,13 +523,25 @@ enet_model <- train(PH ~. ,
 summary(enet_model)
 ```
 
+The model explains about 40% of the variance of the test data.
+
 ```{r}
 enet_pred <- predict(enet_model, test_final)
 postResample(pred = enet_pred, obs = test_final$PH)
 ```
 
+The top predictors here are different than the previous models and other models we will see later.
+Elastic net gives more weight to predictors that can provide more unique information.
+OxygenFiller is less correlated to other top predictors.
+
+```{r}
+plot(varImp(enet_model), top = 10)
+```
 
 ## Random Forest
+
+Random Forest doesn't not require handling of multicolinearity.
+It is robust to outliers and can capture complex patterns.
 
 ```{r}
 set.seed(11111)
@@ -417,16 +556,24 @@ rf_model <- train(PH ~. ,
 summary(rf_model)
 ```
 
+The model explains about 65% of the variance of the test data.
+That's higher than the previous models.
+
 ```{r}
 rf_pred <- predict(rf_model, test_final)
 postResample(pred = rf_pred, obs = test_final$PH)
 ```
 
+```{r}
+plot(varImp(rf_model), top = 10)
+```
+
 ## SVM
 
-## Model 1 
+### Model 1
 
-There are several types of SVM. We will use radial basis kernel.
+There are several types of SVM.
+We will use radial basis kernel as it handle nonlinear relationship well.
 
 ```{r}
 set.seed(11111)
@@ -441,32 +588,23 @@ svm_model <- train(PH ~. ,
 summary(svm_model)
 ```
 
+The model explains about 53% of the variance of the test data.
+
 ```{r}
 svm_pred <- predict(svm_model, test_final)
 postResample(pred = svm_pred, obs = test_final$PH)
 ```
 
-## Model 2
-
 ```{r}
-set.seed(11111)
-
-svm_model2 <- train(PH ~. , 
-                  data = train_final,
-                  method = "svmPoly",
-                  trControl = trainControl(method = "cv", number = 5),
-                  tuneLength = 5
-                  )
-
-summary(svm_model2)
-```
-
-```{r}
-svm_pred2 <- predict(svm_model2, test_final)
-postResample(pred = svm_pred2, obs = test_final$PH)
+plot(varImp(svm_model), top = 10)
 ```
 
 ## KNN
+
+KNN is a nonparametric model that can help predict the PH based on the closest training observations.
+It utilize the idea of beverage observations with similar conditions shold have similar ph levels.
+
+### Model 1
 
 ```{r}
 set.seed(111111)
@@ -482,11 +620,20 @@ knn_model <- train(PH ~. ,
 plot(knn_model)
 ```
 
+The model explains about 46% of the variance of the test data.
+
 ```{r}
 knn_pred <- predict(knn_model, test_final)
 postResample(pred = knn_pred, obs = test_final$PH)
 ```
 
+```{r}
+plot(varImp(knn_model), top = 10)
+```
+
+### Model 2
+
+(tuned KNN)
 
 ```{r}
 set.seed(111112)
@@ -502,15 +649,52 @@ knn_model2 <- train(PH ~. ,
 plot(knn_model2)
 ```
 
+The model explains about 47% of the variance of the test data.
+
 ```{r}
 knn_pred2 <- predict(knn_model2, test_final)
 postResample(pred = knn_pred2, obs = test_final$PH)
 ```
 
-## gbm or xgboost
+```{r}
+plot(varImp(knn_model2), top = 10)
+```
 
+## GBM
 
-## cubist
+```{r, message=FALSE}
+set.seed(1111111)
+
+library(gbm)
+
+gbmGrid <- expand.grid(.interaction.depth = seq(1, 7, by = 2),
+                       .n.trees = seq(100, 1000, by = 50),
+                       .shrinkage = c(0.01, 0.1),
+                       .n.minobsinnode = 10)
+
+gbm_model <- train(PH ~. , 
+                  data = train_final,
+                  method = "gbm",
+                  tuneGrid = gbmGrid,
+                  trControl = trainControl(method = "cv", number = 5),
+                  verbose = FALSE)
+gbm_model
+```
+
+The model explains about 58% of the variance of the test data.
+
+```{r}
+gbm_pred <- predict(gbm_model, test_final)
+postResample(pred = gbm_pred, obs = test_final$PH)
+```
+
+```{r}
+plot(varImp(gbm_model), top = 10)
+```
+
+## Cubist
+
+### Model 1
 
 ```{r}
 set.seed(1111111)
@@ -526,52 +710,128 @@ cubist_model1 <- train(PH ~. ,
 cubist_model1
 ```
 
+The model explains about 66% of the variance of the test data.
+It outperforms all other models.
+
 ```{r}
 cubist_pred <- predict(cubist_model1, test_final)
 postResample(pred = cubist_pred, obs = test_final$PH)
 ```
 
-
 ```{r}
-
-```
-
-```{r}
-
-```
-
-
-#Linear Model- Multicollinearity
-Linear regression does not require the predictor variables to be normally distributed which works here considering many of the distributions of the variables are not normal. In this section we'll restrict which variables will be fed into the model. Milticollinearity can effect the output coefficients and the model interpretatibility. We can't afford to lose grip on these in reporting to our stakeholders.
-
-
-To assess this, we'll separate the response variable from the predictors.
-
-```{r correlation_table_v2}
-predictors <- data[, names(data) != "PH"]
-response   <- data$PH
-ph_corr <- corr.test(x = predictors[,-1], y = response, "pairwise", "pearson")
+plot(varImp(cubist_model1), top = 10)
 ```
 
 ```{r}
-correlations <- ph_corr$r[, 1]
-p_values <- ph_corr$p[, 1]
-ph_table <- data.frame(r= correlations, p= p_values)
-ph_table %>% 
-  arrange(desc(r))
+varImp(cubist_model1)
 ```
 
-The `correlation table r` shows the strength and direction of the relationship of each variable with our response variables ph. The Pairwise calculations ignore NA values which will be useful for now. Next, we'll find correlations without the response variable to determine pairwise redundancies/ multicollinearity. We'll use findCorrelation() from the caret package, and use the cutoff specified in the algorithm description (Lin, 99).
+### Model 2
 
-```{r predictor_v_predictor}
-pred_numerical <- predictors[, sapply(predictors, is.numeric)]
-ppcor<- pred_cor <- cor(pred_numerical, use = "pairwise.complete.obs")
-findCorrelation(ppcor, cutoff = 0.7)
+Since Cubist model outperform all other models, we can attempt to further improve it by performing feature engineering.
+Create new nonlinear terms based on top predictors in the cubist model.
+
+```{r}
+train_final <- train_final %>%
+  mutate(MnfFlow_Sq = MnfFlow^2,
+         PressureVacuum_Sq = PressureVacuum^2,
+         AlchRel_Sq = AlchRel^2,
+         Density_Sq = Density^2)
+
+test_final <- test_final %>%
+  mutate(MnfFlow_Sq = MnfFlow^2,
+         PressureVacuum_Sq = PressureVacuum^2,
+         AlchRel_Sq = AlchRel^2,
+         Density_Sq = Density^2)
+
+set.seed(22)
+
+cubistGrid <- expand.grid(committees = c(5, 10, 20, 25, 30, 35, 40, 50),
+                          neighbors = c(3, 5, 7, 9))
+
+cubist_model2 <- train(PH ~. , 
+                  data = train_final,
+                  method = "cubist",
+                  trControl = trainControl(method = "cv", number = 5),
+                  tuneGrid = cubistGrid)
+cubist_model2
 ```
 
+The model explains about 67% of the variance of the test data.
+It only improve slightly.
+
+```{r}
+cubist_pred2 <- predict(cubist_model2, test_final)
+postResample(pred = cubist_pred2, obs = test_final$PH)
+```
+
+# Model Comparison
+
+| Model               | RMSE       | R\^2       | MAE        |
+|---------------------|------------|------------|------------|
+| Cubist              | 0.09975222 | 0.67001655 | 0.06823076 |
+| Random Forest       | 0.10262764 | 0.65054981 | 0.07243542 |
+| GBM                 | 0.11319662 | 0.57835611 | 0.08324744 |
+| SVM                 | 0.12046363 | 0.52576294 | 0.08732194 |
+| KNN                 | 0.12678369 | 0.47065301 | 0.09136588 |
+| Simple linear model | 0.1304420  | 0.4260610  | 0.1015644  |
+| elastic Net         | 0.1337878  | 0.4042556  | 0.1015644  |
+| Ridge               | 0.1337878  | 0.4042556  | 0.1037787  |
+
+The Cubist model outperform all the other models as it has the highest 𝑅2 and lowest RMSE value.
+However, it is still not an ideal model as it only explains about 67% of the variance of the test data.
+
+# Prediction
+
+```{r}
+eval_data <- s.eval %>%
+  select(-PH)
+
+eval_data$BrandCode <- as.factor(eval_data$BrandCode)
+
+eval_numeric <- eval_data %>%
+  select(where(is.numeric))
+
+eval_factors <- eval_data %>%
+  select(where(is.factor))
+
+eval_numeric_transformed <- predict(trans, eval_numeric)
+
+eval_final <-bind_cols(eval_numeric_transformed, eval_factors)
+
+eval_final <- eval_final %>%
+  mutate(across(where(is.factor), ~fct_na_value_to_level(.x, "Unknown")),
+         MnfFlow_Sq = MnfFlow^2,
+         PressureVacuum_Sq = PressureVacuum^2,
+         AlchRel_Sq = AlchRel^2,
+         Density_Sq = Density^2
+         )
+
+
+eval_final$eval_pred_ph <- predict(cubist_model2, eval_final)
 
 
 
+write.csv(eval_final, file = "Cubist_PH_Predictions.csv")
 
 
+```
 
+# Conclusion
+
+In this project, we explored and modeled the features affecting the pH level in beverge manufacturing process.
+After performing EDA and preprocessing, the following models were tested to help predict the ph level: linear regression, ridge, elastic net, random forest, SVM, KNN, GBM, and Cubist.
+Among all models, the Cubist model outperform all the other models as it has the highest 𝑅2 and lowest RMSE value.
+
+Common key predictors across models includes, MnfFlow, OygenFiller, Pressure settings, Balling levels, and Temperature.
+MnfFlow consistently emerged as the top predictor across most models.
+By controlling these predictors, ABC Beverage can maintain more consistent pH levels of the beverages.
+
+# Further Enhancement
+
+Although Cubist outperform all models, it is still not an ideal model as it only explains about 67% of the variance of the test data.
+If more time allows, we can attempt to improve the model further by:
+
+-   further hyperparameter tuning
+-   feature engineering: create new interactions and nonlinear terms
+-   collect additional features that may influence the pH level like ingredient concentration
